@@ -1,0 +1,53 @@
+
+name: Terraform Init and Validate
+description: Initialize and validate a Terraform configuration directory
+
+inputs:
+  working_directory:
+    description: Path to the Terraform root directory
+    required: true
+
+  terraform_version:
+    description: Terraform CLI version
+    required: false
+    default: "1.14.6"
+
+runs:
+  using: composite
+  steps:
+    - name: Verify Terraform directory
+      shell: bash
+      env:
+        TF_DIR: ${{ inputs.working_directory }}
+      run: |
+        if [[ ! -d "$TF_DIR" ]]; then
+          echo "::error::Directory not found: $TF_DIR"
+          exit 1
+        fi
+
+        if ! find "$TF_DIR" -maxdepth 1 \
+          -type f -name '*.tf' -print -quit | grep -q .; then
+          echo "::error::No Terraform files found in $TF_DIR"
+          exit 1
+        fi
+
+    - name: Setup Terraform
+      uses: hashicorp/setup-terraform@v4
+      with:
+        terraform_version: ${{ inputs.terraform_version }}
+        terraform_wrapper: false
+
+    - name: Terraform Format Check
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform fmt -check -diff -recursive
+
+    - name: Terraform Init
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform init -backend=false -input=false -no-color
+
+    - name: Terraform Validate
+      shell: bash
+      working-directory: ${{ inputs.working_directory }}
+      run: terraform validate -no-color
